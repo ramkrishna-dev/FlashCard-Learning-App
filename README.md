@@ -480,26 +480,6 @@ Made with ❤️ by [Ramkrishna](https://github.com/ramkrishna-dev) for learners
 
 </div>
 
----
-
-## 📞 Support & Contact
-
-### 💬 Get Help
-- 📋 Check this README first
-- 🔍 Search existing issues
-- 💬 Create new issue if needed
-- 📧 Contact: [your-email@example.com]
-
-### 🌟 Show Your Support
-- ⭐ Star this repository
-- 🔄 Share with others
-- 🐛 Report issues
-- 💡 Suggest improvements
-
----
-
-<div align="center">
-
 ### 🎉 Happy Learning! 🎉
 
 Made with ❤️ for learners everywhere
