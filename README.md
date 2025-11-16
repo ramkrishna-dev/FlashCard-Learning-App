@@ -470,20 +470,3 @@ Passionate about creating educational tools that make learning more effective an
 
 ---
 
-<div align="center">
-
-### 🎉 Happy Learning! 🎉
-
-Made with ❤️ by [Ramkrishna](https://github.com/ramkrishna-dev) for learners everywhere
-
-[⬆️ Back to Top](#-flashcard-learning-web-app)
-
-</div>
-
-### 🎉 Happy Learning! 🎉
-
-Made with ❤️ for learners everywhere
-
-[⬆️ Back to Top](#-flashcard-learning-web-app)
-
-</div>
