@@ -1,5 +1,17 @@
 // Flashcard Learning App - Main JavaScript File
 
+const escapeHTML = (str) => {
+    if (!str) return str;
+    return str.replace(/[&<>'"]/g,
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag]));
+};
+
 class Card {
     constructor(front, back, id = null) {
         this.id = id || this.generateId();
@@ -235,6 +247,11 @@ class FlashcardApp {
         document.getElementById('hardBtn').addEventListener('click', () => this.reviewCard(1));
         document.getElementById('goodBtn').addEventListener('click', () => this.reviewCard(2));
         document.getElementById('easyBtn').addEventListener('click', () => this.reviewCard(3));
+
+        // Deck Details View
+        document.getElementById('backFromDetailsBtn').addEventListener('click', () => this.showDeckList());
+        document.getElementById('studyDeckBtn').addEventListener('click', () => this.startStudySession(this.currentDeck));
+        document.getElementById('addCardDetailsBtn').addEventListener('click', () => this.showCardModal());
         
         // Import modal
         document.getElementById('confirmImportBtn').addEventListener('click', () => this.importData());
@@ -276,6 +293,7 @@ class FlashcardApp {
         document.getElementById('deckListView').classList.remove('hidden');
         document.getElementById('cardStudyView').classList.add('hidden');
         document.getElementById('statsView').classList.add('hidden');
+        document.getElementById('deckDetailsView').classList.add('hidden');
         document.getElementById('searchBar').classList.add('hidden');
         this.renderDecks();
     }
@@ -284,7 +302,58 @@ class FlashcardApp {
         document.getElementById('deckListView').classList.add('hidden');
         document.getElementById('cardStudyView').classList.add('hidden');
         document.getElementById('statsView').classList.remove('hidden');
+        document.getElementById('deckDetailsView').classList.add('hidden');
         this.renderStats();
+    }
+
+    showDeckDetails(deck) {
+        this.currentDeck = deck;
+        document.getElementById('deckListView').classList.add('hidden');
+        document.getElementById('cardStudyView').classList.add('hidden');
+        document.getElementById('statsView').classList.add('hidden');
+        document.getElementById('deckDetailsView').classList.remove('hidden');
+
+        document.getElementById('detailsDeckName').textContent = deck.name;
+        document.getElementById('detailsDeckDesc').textContent = deck.description || 'No description';
+
+        const stats = deck.getStats();
+        document.getElementById('detailsTotalCards').textContent = stats.totalCards;
+        document.getElementById('detailsDueCards').textContent = stats.dueCards;
+
+        this.renderDeckDetails();
+    }
+
+    renderDeckDetails() {
+        const container = document.getElementById('cardsList');
+        const emptyState = document.getElementById('emptyCardsState');
+        const deck = this.currentDeck;
+
+        if (!deck || deck.cards.length === 0) {
+            container.innerHTML = '';
+            emptyState.classList.remove('hidden');
+            return;
+        }
+
+        emptyState.classList.add('hidden');
+        container.innerHTML = deck.cards.map(card => `
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow border border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <div class="flex-1 mr-4">
+                    <p class="font-medium text-gray-900 dark:text-white mb-1">Front: ${escapeHTML(card.front)}</p>
+                    <p class="text-gray-600 dark:text-gray-300 text-sm">Back: ${escapeHTML(card.back)}</p>
+                    <div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Reviews: ${card.reviewCount} | Success: ${card.getAccuracy().toFixed(1)}% | Next: ${new Date(card.nextReview).toLocaleDateString()}
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="app.editCard('${card.id}')" class="text-blue-600 hover:text-blue-800 p-2" title="Edit Card">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                    <button onclick="app.deleteCard('${card.id}')" class="text-red-600 hover:text-red-800 p-2" title="Delete Card">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                </div>
+            </div>
+        `).join('');
     }
 
     showDeckModal(deck = null) {
@@ -318,16 +387,24 @@ class FlashcardApp {
         const nameInput = document.getElementById('deckNameInput');
         const descInput = document.getElementById('deckDescInput');
         
+        const name = nameInput.value.trim();
+        const description = descInput.value.trim();
+
+        if (!name) {
+            alert('Deck name cannot be empty.');
+            return;
+        }
+
         if (modal.dataset.deckId) {
             // Edit existing deck
             const deck = this.decks.find(d => d.id === modal.dataset.deckId);
             if (deck) {
-                deck.name = nameInput.value;
-                deck.description = descInput.value;
+                deck.name = name;
+                deck.description = description;
             }
         } else {
             // Create new deck
-            const deck = new Deck(nameInput.value, descInput.value);
+            const deck = new Deck(name, description);
             this.decks.push(deck);
         }
         
@@ -336,8 +413,19 @@ class FlashcardApp {
         this.hideDeckModal();
     }
 
-    showCardModal() {
-        document.getElementById('cardModal').classList.remove('hidden');
+    showCardModal(isEdit = false) {
+        const modal = document.getElementById('cardModal');
+        const title = modal.querySelector('h3');
+
+        if (!isEdit) {
+            document.getElementById('cardForm').reset();
+            delete modal.dataset.cardId;
+            title.textContent = 'Add New Card';
+        } else {
+            title.textContent = 'Edit Card';
+        }
+
+        modal.classList.remove('hidden');
     }
 
     hideCardModal() {
@@ -349,14 +437,59 @@ class FlashcardApp {
         e.preventDefault();
         const frontInput = document.getElementById('cardFrontInput');
         const backInput = document.getElementById('cardBackInput');
+        const modal = document.getElementById('cardModal');
         
+        const front = frontInput.value.trim();
+        const back = backInput.value.trim();
+
+        if (!front || !back) {
+            alert('Both front and back of the card are required.');
+            return;
+        }
+
         if (this.currentDeck) {
-            this.currentDeck.addCard(frontInput.value, backInput.value);
+            if (modal.dataset.cardId) {
+                // Edit existing card
+                const card = this.currentDeck.getCard(modal.dataset.cardId);
+                if (card) {
+                    card.front = front;
+                    card.back = back;
+                }
+            } else {
+                // Add new card
+                this.currentDeck.addCard(front, back);
+            }
+
             this.saveToStorage();
-            this.startStudySession(this.currentDeck);
+
+            // Refresh current view
+            if (!document.getElementById('deckDetailsView').classList.contains('hidden')) {
+                this.renderDeckDetails();
+            } else if (!document.getElementById('cardStudyView').classList.contains('hidden')) {
+                this.startStudySession(this.currentDeck);
+            }
         }
         
         this.hideCardModal();
+    }
+
+    editCard(cardId) {
+        const card = this.currentDeck.getCard(cardId);
+        if (card) {
+            const modal = document.getElementById('cardModal');
+            document.getElementById('cardFrontInput').value = card.front;
+            document.getElementById('cardBackInput').value = card.back;
+            modal.dataset.cardId = card.id;
+            this.showCardModal(true);
+        }
+    }
+
+    deleteCard(cardId) {
+        if (confirm('Are you sure you want to delete this card?')) {
+            this.currentDeck.removeCard(cardId);
+            this.saveToStorage();
+            this.renderDeckDetails();
+        }
     }
 
     startStudySession(deck) {
@@ -375,6 +508,7 @@ class FlashcardApp {
         }
         
         document.getElementById('deckListView').classList.add('hidden');
+        document.getElementById('deckDetailsView').classList.add('hidden');
         document.getElementById('cardStudyView').classList.remove('hidden');
         
         this.renderCurrentCard();
@@ -485,9 +619,15 @@ class FlashcardApp {
             return `
                 <div class="deck-card bg-white dark:bg-gray-800 p-6 rounded-lg shadow hover:shadow-lg cursor-pointer" onclick="app.startStudySession(app.decks.find(d => d.id === '${deck.id}'))">
                     <div class="flex justify-between items-start mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${deck.name}</h3>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">${escapeHTML(deck.name)}</h3>
                         <div class="flex space-x-2">
-                            <button onclick="event.stopPropagation(); app.showDeckModal(app.decks.find(d => d.id === '${deck.id}'))" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <button onclick="event.stopPropagation(); app.showDeckDetails(app.decks.find(d => d.id === '${deck.id}'))" class="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" title="Manage Deck">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                            </button>
+                            <button onclick="event.stopPropagation(); app.showDeckModal(app.decks.find(d => d.id === '${deck.id}'))" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" title="Edit Info">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                 </svg>
@@ -499,7 +639,7 @@ class FlashcardApp {
                             </button>
                         </div>
                     </div>
-                    <p class="text-gray-600 dark:text-gray-300 text-sm mb-4">${deck.description || 'No description'}</p>
+                    <p class="text-gray-600 dark:text-gray-300 text-sm mb-4">${escapeHTML(deck.description) || 'No description'}</p>
                     <div class="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <span class="text-gray-500 dark:text-gray-400">Total Cards:</span>
@@ -573,7 +713,7 @@ class FlashcardApp {
         } else {
             recentActivity.innerHTML = activities.map(activity => `
                 <div class="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700 last:border-0">
-                    <span class="text-sm text-gray-600 dark:text-gray-300">${activity.description}</span>
+                    <span class="text-sm text-gray-600 dark:text-gray-300">${escapeHTML(activity.description)}</span>
                     <span class="text-xs text-gray-500 dark:text-gray-400">${activity.time}</span>
                 </div>
             `).join('');
@@ -650,14 +790,23 @@ class FlashcardApp {
                 const data = JSON.parse(e.target.result);
                 
                 if (data.decks && Array.isArray(data.decks)) {
-                    data.decks.forEach(deckData => {
-                        const deck = new Deck(deckData.name, deckData.description, deckData.id);
+                    const validDecks = data.decks.filter(d => d && typeof d === 'object' && d.name);
+
+                    if (validDecks.length === 0 && data.decks.length > 0) {
+                        alert('No valid decks found in import file.');
+                        return;
+                    }
+
+                    validDecks.forEach(deckData => {
+                        const deck = new Deck(deckData.name, deckData.description || '', deckData.id);
                         
                         if (deckData.cards && Array.isArray(deckData.cards)) {
                             deckData.cards.forEach(cardData => {
-                                const card = new Card(cardData.front, cardData.back, cardData.id);
-                                Object.assign(card, cardData);
-                                deck.cards.push(card);
+                                if (cardData && cardData.front && cardData.back) {
+                                    const card = new Card(cardData.front, cardData.back, cardData.id);
+                                    Object.assign(card, cardData);
+                                    deck.cards.push(card);
+                                }
                             });
                         }
                         
